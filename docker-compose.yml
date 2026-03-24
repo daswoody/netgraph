@@ -1,0 +1,45 @@
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: network-graph-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: network_graph
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    labels:
+      - "traefik.enable=false"   # internal service, no public routing
+
+  # ── API server ─────────────────────────────────────────────────────────────
+  backend:
+    build: ./server
+    container_name: network-graph-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/network_graph
+      PORT: 4000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=false"   # internal service — nginx proxies /api to it
+
+  # ── React frontend (nginx) ─────────────────────────────────────────────────
+  frontend:
+    build: .
+    container_name: network-graph-app
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

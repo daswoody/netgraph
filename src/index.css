@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+/* Class-based dark mode for Tailwind v4 */
+@variant dark (&:where(.dark, .dark *));
+
+/* React Flow dark mode overrides */
+.dark .react-flow__background {
+  background-color: #111827;
+}
+.dark .react-flow__minimap {
+  background-color: #1f2937;
+}
+.dark .react-flow__minimap-mask {
+  fill: rgba(17, 24, 39, 0.6);
+}
+.dark .react-flow__controls button {
+  background-color: #1f2937;
+  border-color: #374151;
+  color: #d1d5db;
+}
+.dark .react-flow__controls button:hover {
+  background-color: #374151;
+}

@@ -1,0 +1,26 @@
+# Dependencies (installed fresh inside Docker)
+node_modules/
+server/node_modules/
+
+# Build output (rebuilt inside Docker)
+dist/
+
+# Git
+.git/
+.gitignore
+
+# Docs
+*.md
+
+# Local env files
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude Code
+.claude/

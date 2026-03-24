@@ -1,0 +1,23 @@
+# Dependencies — NEVER commit these
+node_modules/
+server/node_modules/
+
+# Build output
+dist/
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+*.log

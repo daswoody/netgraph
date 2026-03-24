@@ -1,0 +1,85 @@
+import { type AppNode, type Group } from '../types'
+
+export const seedGroups: Group[] = [
+  {
+    id: 'g1',
+    name: 'Datenbankfeld',
+    color: '#4F81BD',
+    defaultTags: ['db', 'field'],
+  },
+  {
+    id: 'g2',
+    name: 'UI-Komponente',
+    color: '#70AD47',
+    defaultTags: ['ui', 'form'],
+  },
+  {
+    id: 'g3',
+    name: 'API-Endpoint',
+    color: '#ED7D31',
+    defaultTags: ['api', 'rest'],
+  },
+]
+
+export const seedNodes: AppNode[] = [
+  {
+    id: 'n1',
+    name: 'Geburtsdatum',
+    groupId: 'g1',
+    color: '#4F81BD',
+    tags: ['db'],
+    description: 'Geburtsdatum des Patienten.',
+    connectedNodeIds: ['n4', 'n5', 'n6'],
+    position: { x: 80, y: 200 },
+  },
+  {
+    id: 'n2',
+    name: 'Vorname',
+    groupId: 'g1',
+    color: '#4F81BD',
+    tags: ['db'],
+    description: 'Vorname des Patienten.',
+    connectedNodeIds: ['n4', 'n5'],
+    position: { x: 80, y: 360 },
+  },
+  {
+    id: 'n3',
+    name: 'Nachname',
+    groupId: 'g1',
+    color: '#4F81BD',
+    tags: ['db'],
+    description: 'Nachname des Patienten.',
+    connectedNodeIds: ['n4'],
+    position: { x: 80, y: 520 },
+  },
+  {
+    id: 'n4',
+    name: 'PatientenFormular',
+    groupId: 'g2',
+    color: '#70AD47',
+    tags: ['ui', 'form'],
+    description: 'Formular zur Patientenerfassung.',
+    connectedNodeIds: ['n1', 'n2', 'n3'],
+    position: { x: 480, y: 360 },
+  },
+  {
+    id: 'n5',
+    name: 'GET /patient',
+    groupId: 'g3',
+    color: '#ED7D31',
+    tags: ['api', 'rest'],
+    description: 'REST-Endpoint zum Abrufen von Patientendaten.',
+    connectedNodeIds: ['n1', 'n2'],
+    position: { x: 480, y: 160 },
+  },
+  {
+    id: 'n6',
+    name: 'Abrechnungsmodul',
+    groupId: 'g2',
+    color: '#70AD47',
+    tags: ['ui'],
+    description: 'Modul für die Abrechnung mit Krankenkassen.',
+    connectedNodeIds: ['n1'],
+    position: { x: 480, y: 540 },
+  },
+]
