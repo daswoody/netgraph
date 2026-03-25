@@ -22,6 +22,9 @@ interface AppStore {
   groups: Group[]
   loading: boolean
 
+  // Clipboard
+  clipboardNode: AppNode | null
+
   // UI state
   selectedNodeId: string | null
   focusMode: boolean
@@ -44,6 +47,9 @@ interface AppStore {
   deleteNode: (id: string) => void
   moveNode: (id: string, position: { x: number; y: number }) => void
   setNodePositions: (positions: Record<string, { x: number; y: number }>) => void
+  duplicateNode: (id: string) => Promise<void>
+  copyNode: (id: string) => void
+  pasteNode: () => Promise<void>
 
   // Group actions
   addGroup: (group: Omit<Group, 'id'>) => Promise<void>
@@ -87,6 +93,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   nodes: [],
   groups: [],
   loading: false,
+  clipboardNode: null,
   ...initialUIState,
 
   // ── Graph lifecycle ────────────────────────────────────────────────────────
@@ -128,16 +135,75 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     if (!graphId) return
     const created = await api.createNode(graphId, node)
     set((state) => ({ nodes: [...state.nodes, created] }))
+
+    // Bidirectional: add created node's ID to each connected node
+    if (created.connectedNodeIds.length > 0) {
+      const currentNodes = get().nodes
+      const siblings = currentNodes.filter(
+        (n) => n.id !== created.id && created.connectedNodeIds.includes(n.id),
+      )
+      for (const sibling of siblings) {
+        if (!sibling.connectedNodeIds.includes(created.id)) {
+          const updated = { ...sibling, connectedNodeIds: [...sibling.connectedNodeIds, created.id] }
+          set((state) => ({
+            nodes: state.nodes.map((n) => (n.id === sibling.id ? updated : n)),
+          }))
+          api.updateNode(graphId, sibling.id, updated).catch(console.error)
+        }
+      }
+    }
   },
 
   updateNode: (id, patch) => {
+    const graphId = get().currentGraphId
+    const oldNode = get().nodes.find((n) => n.id === id)
+    if (!oldNode) return
+
+    // Apply patch locally
     set((state) => ({
       nodes: state.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)),
     }))
-    const graphId = get().currentGraphId
-    if (!graphId) return
+
     const updated = get().nodes.find((n) => n.id === id)
-    if (updated) api.updateNode(graphId, id, updated).catch(console.error)
+    if (updated && graphId) {
+      api.updateNode(graphId, id, updated).catch(console.error)
+    }
+
+    // Bidirectional connection sync
+    if (patch.connectedNodeIds !== undefined && graphId) {
+      const oldConnected = oldNode.connectedNodeIds
+      const newConnected = patch.connectedNodeIds
+
+      const added = newConnected.filter((cid) => !oldConnected.includes(cid))
+      const removed = oldConnected.filter((cid) => !newConnected.includes(cid))
+
+      const currentNodes = get().nodes
+
+      for (const addedId of added) {
+        const sibling = currentNodes.find((n) => n.id === addedId)
+        if (sibling && !sibling.connectedNodeIds.includes(id)) {
+          const updatedSibling = { ...sibling, connectedNodeIds: [...sibling.connectedNodeIds, id] }
+          set((state) => ({
+            nodes: state.nodes.map((n) => (n.id === addedId ? updatedSibling : n)),
+          }))
+          api.updateNode(graphId, addedId, updatedSibling).catch(console.error)
+        }
+      }
+
+      for (const removedId of removed) {
+        const sibling = currentNodes.find((n) => n.id === removedId)
+        if (sibling && sibling.connectedNodeIds.includes(id)) {
+          const updatedSibling = {
+            ...sibling,
+            connectedNodeIds: sibling.connectedNodeIds.filter((cid) => cid !== id),
+          }
+          set((state) => ({
+            nodes: state.nodes.map((n) => (n.id === removedId ? updatedSibling : n)),
+          }))
+          api.updateNode(graphId, removedId, updatedSibling).catch(console.error)
+        }
+      }
+    }
   },
 
   deleteNode: (id) => {
@@ -180,6 +246,49 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     nodes.forEach((n) => {
       if (positions[n.id]) api.updateNode(graphId, n.id, n).catch(console.error)
     })
+  },
+
+  duplicateNode: async (id) => {
+    const graphId = get().currentGraphId
+    if (!graphId) return
+    const original = get().nodes.find((n) => n.id === id)
+    if (!original) return
+    const copy: Omit<AppNode, 'id'> = {
+      name: original.name + '-Copy',
+      groupId: original.groupId,
+      color: original.color,
+      tags: [...original.tags],
+      description: original.description,
+      connectedNodeIds: [],
+      position: { x: original.position.x + 30, y: original.position.y + 30 },
+      image: original.image,
+    }
+    const created = await api.createNode(graphId, copy)
+    set((state) => ({ nodes: [...state.nodes, created] }))
+  },
+
+  copyNode: (id) => {
+    const node = get().nodes.find((n) => n.id === id)
+    if (node) set({ clipboardNode: node })
+  },
+
+  pasteNode: async () => {
+    const graphId = get().currentGraphId
+    if (!graphId) return
+    const original = get().clipboardNode
+    if (!original) return
+    const copy: Omit<AppNode, 'id'> = {
+      name: original.name + '-Copy',
+      groupId: original.groupId,
+      color: original.color,
+      tags: [...original.tags],
+      description: original.description,
+      connectedNodeIds: [],
+      position: { x: original.position.x + 30, y: original.position.y + 30 },
+      image: original.image,
+    }
+    const created = await api.createNode(graphId, copy)
+    set((state) => ({ nodes: [...state.nodes, created] }))
   },
 
   // ── Group actions ───────────────────────────────────────────────────────────

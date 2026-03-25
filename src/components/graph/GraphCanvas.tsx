@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect, useRef } from 'react'
+import { useCallback, useMemo, useEffect, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -6,6 +6,7 @@ import {
   MiniMap,
   type NodeChange,
   type Connection,
+  type EdgeMouseHandler,
   BackgroundVariant,
   useReactFlow,
 } from '@xyflow/react'
@@ -34,7 +35,16 @@ export function GraphCanvas() {
   const openDetailPanel = useAppStore((s) => s.openDetailPanel)
   const updateNode = useAppStore((s) => s.updateNode)
   const setNodePositions = useAppStore((s) => s.setNodePositions)
+  const copyNode = useAppStore((s) => s.copyNode)
+  const pasteNode = useAppStore((s) => s.pasteNode)
   const { fitView } = useReactFlow()
+
+  // Edge selection
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
+  const selectedEdgeIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    selectedEdgeIdRef.current = selectedEdgeId
+  }, [selectedEdgeId])
 
   const graphFilters = useMemo(
     () => ({ groupIds: graphFilterGroupIds, tags: graphFilterTags }),
@@ -63,6 +73,56 @@ export function GraphCanvas() {
     prevStateRef.current = key
   }, [graphFilterGroupIds, graphFilterTags, dotMode, focusMode, nodes.length])
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+
+      const edgeId = selectedEdgeIdRef.current
+
+      // Delete selected edge
+      if ((e.key === 'Delete' || e.key === 'Backspace') && edgeId) {
+        e.preventDefault()
+        const parts = edgeId.split('--')
+        if (parts.length === 2) {
+          const [id1, id2] = parts
+          const { nodes: currentNodes } = useAppStore.getState()
+          const node1 = currentNodes.find((n) => n.id === id1)
+          const node2 = currentNodes.find((n) => n.id === id2)
+          if (node1) {
+            updateNode(id1, { connectedNodeIds: node1.connectedNodeIds.filter((id) => id !== id2) })
+          }
+          if (node2) {
+            updateNode(id2, { connectedNodeIds: node2.connectedNodeIds.filter((id) => id !== id1) })
+          }
+        }
+        setSelectedEdgeId(null)
+        return
+      }
+
+      // Copy node
+      if ((e.key === 'c' || e.key === 'C') && (e.ctrlKey || e.metaKey)) {
+        const { selectedNodeId: sid } = useAppStore.getState()
+        if (sid) {
+          e.preventDefault()
+          copyNode(sid)
+        }
+        return
+      }
+
+      // Paste node
+      if ((e.key === 'v' || e.key === 'V') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault()
+        pasteNode()
+        return
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [updateNode, copyNode, pasteNode])
+
   // Compute RF nodes and edges
   const rfNodes = useMemo(() => {
     const base = toRFNodes(nodes, groups, selectedNodeId, focusMode, graphFilters)
@@ -74,8 +134,17 @@ export function GraphCanvas() {
 
   const rfEdges = useMemo(() => {
     const visibleIds = computeVisibleIds(nodes, graphFilters, focusMode, selectedNodeId)
-    return toRFEdges(nodes, visibleIds, selectedNodeId)
-  }, [nodes, graphFilters, focusMode, selectedNodeId])
+    const edges = toRFEdges(nodes, visibleIds, selectedNodeId)
+    return edges.map((edge) => {
+      if (edge.id === selectedEdgeId) {
+        return {
+          ...edge,
+          style: { strokeWidth: 2.5, stroke: '#6366f1', opacity: 0.9 },
+        }
+      }
+      return edge
+    })
+  }, [nodes, graphFilters, focusMode, selectedNodeId, selectedEdgeId])
 
   const nodeTypes = dotMode ? NODE_TYPES_DOT : NODE_TYPES_NODE
 
@@ -99,6 +168,13 @@ export function GraphCanvas() {
     [selectNode, openDetailPanel],
   )
 
+  const onEdgeClick: EdgeMouseHandler = useCallback(
+    (_: React.MouseEvent, edge: { id: string }) => {
+      setSelectedEdgeId(edge.id)
+    },
+    [],
+  )
+
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return
@@ -116,6 +192,7 @@ export function GraphCanvas() {
 
   const onPaneClick = useCallback(() => {
     selectNode(null)
+    setSelectedEdgeId(null)
   }, [selectNode])
 
   return (
@@ -126,6 +203,7 @@ export function GraphCanvas() {
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
         onConnect={onConnect}
         onPaneClick={onPaneClick}
         fitView
